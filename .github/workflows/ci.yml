@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        python: ["3.11", "3.12", "3.13"]
+        node: ["20", "22"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install engine with agent extras
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -e ".[mcp,api]" pytest httpx
+      - name: Python tests
+        run: .venv/bin/python -m pytest tests/ -q
+      - name: Node launcher tests
+        run: npm test
+      - name: Build distributions
+        run: |
+          .venv/bin/python -m pip install build
+          .venv/bin/python -m build
+          ls dist/
+      - name: npm pack (contents check)
+        run: npm pack --dry-run

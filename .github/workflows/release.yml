@@ -1,0 +1,60 @@
+name: Release
+
+# Publishes on version tags (v*).  Requires, in the GitHub repo:
+#   * PyPI Trusted Publisher configured for this workflow (no token)
+#   * NPM_TOKEN secret (or npm trusted publishing) for npm provenance
+# Until those exist, run the same steps locally with --dry-run.
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build-test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      - run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -e ".[mcp,api]" pytest httpx build
+          .venv/bin/python -m pytest tests/ -q
+          npm test
+          .venv/bin/python -m build
+
+  publish-pypi:
+    needs: build-test
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          python -m pip install build
+          python -m build
+      - uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-npm:
+    needs: build-test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          registry-url: "https://registry.npmjs.org"
+      - run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

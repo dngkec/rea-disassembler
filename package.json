@@ -1,0 +1,30 @@
+{
+  "name": "rea-disassembler",
+  "version": "1.1.0",
+  "description": "Headless, evidence-first disassembler for agents and humans: Mach-O/ELF/PE, ARM64+x86-64, CFG/call-graph/string-xrefs, decompiler, assembler/patch, LLDB debug, MCP + HTTP surfaces. Thin Node launcher over the rea-disassembler Python engine.",
+  "license": "MIT",
+  "bin": {
+    "rea-disassembler": "bin/readis.js",
+    "readis": "bin/readis.js"
+  },
+  "files": [
+    "bin/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test-node/launcher.test.js"
+  },
+  "keywords": [
+    "disassembler",
+    "reverse-engineering",
+    "mach-o",
+    "elf",
+    "pe",
+    "arm64",
+    "mcp",
+    "agent-tools"
+  ]
+}
