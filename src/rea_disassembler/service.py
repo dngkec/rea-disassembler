@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .analysis import analyse
 from .formats import load_binary
-from .output import image_to_dict, page
+from .output import image_to_dict, page, clamp_pagination
 
 _CACHE: dict[str, tuple[float, object, dict]] = {}
 _MAX_CACHE = 2
@@ -40,7 +40,7 @@ def overview(path: str) -> dict:
 
 def functions_page(path: str, limit: int = 200, offset: int = 0) -> dict:
     items = overview(path)["functions"]
-    limit = max(0, min(limit, 5000))
+    limit, offset = clamp_pagination(limit, offset, limit)
     return page(items[offset:offset + limit], len(items), limit, offset)
 
 
@@ -48,7 +48,7 @@ def strings_page(path: str, limit: int = 200, offset: int = 0) -> dict:
     img, result = get_analysis(path)
     items = [{"addr": hex(s.addr), "value": s.value, "encoding": s.encoding,
               "xrefs": [hex(x) for x in s.xrefs]} for s in result["strings"]]
-    limit = max(0, min(limit, 5000))
+    limit, offset = clamp_pagination(limit, offset, limit)
     return page(items[offset:offset + limit], len(items), limit, offset)
 
 

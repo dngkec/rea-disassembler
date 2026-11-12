@@ -56,8 +56,23 @@ function findPython() {
 
 function run(cmd, args, opts = {}) {
   const r = spawnSync(cmd, args, { stdio: "inherit", ...opts });
-  if (r.error) throw r.error;
-  return r.status;
+  // A command that cannot be spawned at all is a provisioning failure,
+  // handled by callers' clean exit-3 paths, not an uncaught exception.
+  if (r.error) return 127;
+  return r.status ?? 127;
+}
+
+function cleanExit3(message) {
+  console.error(`rea-disassembler: ${message}`);
+  process.exit(3);
+}
+
+function trySetupFs(operation, fn) {
+  try {
+    return fn();
+  } catch (e) {
+    return cleanExit3(`${operation}: ${e.message}`);
+  }
 }
 
 function ensureEngine(dir, needMcp = false) {
@@ -88,7 +103,9 @@ function ensureEngine(dir, needMcp = false) {
     );
     process.exit(3);
   }
-  fs.mkdirSync(dir, { recursive: true });
+  trySetupFs("failed to prepare the engine cache directory", () => {
+    fs.mkdirSync(dir, { recursive: true });
+  });
   const venv = path.join(dir, "venv");
   if (!fs.existsSync(venvPy)) {
     if (run(python, ["-m", "venv", venv]) !== 0) {
@@ -110,7 +127,9 @@ function ensureEngine(dir, needMcp = false) {
     );
     process.exit(3);
   }
-  fs.writeFileSync(marker, requirement + "\n");
+  trySetupFs("failed to record the installed engine", () => {
+    fs.writeFileSync(marker, requirement + "\n");
+  });
   if (needMcp) {
     const probe = spawnSync(venvPy, ["-c", "import mcp"], { stdio: "ignore" });
     if (probe.status !== 0) {

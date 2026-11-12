@@ -40,9 +40,21 @@ def create_app(enable_write: bool = False) -> FastAPI:
     async def _nf(_req: Request, exc: FileNotFoundError):
         return _err("not_found", str(exc), 404)
 
+    @app.exception_handler(FileExistsError)
+    async def _exists(_req: Request, exc: FileExistsError):
+        return _err("already_exists", str(exc), 409)
+
     @app.exception_handler(ValueError)
     async def _bad(_req: Request, exc: ValueError):
         return _err("invalid_input", str(exc), 400)
+
+    @app.exception_handler(OSError)
+    async def _io(_req: Request, exc: OSError):
+        return _err("io_error", str(exc), 400)
+
+    @app.exception_handler(RuntimeError)
+    async def _runtime(_req: Request, exc: RuntimeError):
+        return _err("tool_unavailable", str(exc), 503)
 
     @app.get("/health")
     def health() -> dict:

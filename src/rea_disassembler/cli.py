@@ -26,13 +26,24 @@ from .bench import run_bench
 from .debugger import debug_run
 from .decompile import decompile_function
 from .formats import load_binary
-from .output import listing, page, to_json
+from .output import listing, paginate, to_json
 from .pseudocode import lift_function
 
 
 def _load(args):
     return load_binary(args.file, raw_arch=args.arch if getattr(args, "raw", False) else None,
                        arch=args.arch if not getattr(args, "raw", False) else None)
+
+
+def _port(value: str) -> int:
+    try:
+        port = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"invalid port: {value!r}") from None
+    if not 1 <= port <= 65535:
+        raise argparse.ArgumentTypeError(
+            f"port must be between 1 and 65535: {port}")
+    return port
 
 
 def _resolve_fn(img, result, ident: str):
@@ -52,14 +63,30 @@ def main(argv: list[str] | None = None) -> int:
     JSON error envelope on stderr and exit code 3; usage errors stay 2."""
     try:
         return _run(argv)
+    except ImportError as e:
+        missing = getattr(e, "name", None) or str(e)
+        return _cli_error(
+            "dependency_missing",
+            f"missing optional dependency {missing!r}; "
+            "install rea-disassembler[all]")
     except FileNotFoundError as e:
-        print(json.dumps({"error": {"code": "not_found", "message": str(e)}}),
-              file=sys.stderr)
-        return 3
-    except ValueError as e:
-        print(json.dumps({"error": {"code": "invalid_input", "message": str(e)}}),
-              file=sys.stderr)
-        return 3
+        return _cli_error("not_found", e)
+    except FileExistsError as e:
+        return _cli_error("already_exists", e)
+    except PermissionError as e:
+        return _cli_error("permission_denied", e)
+    except IsADirectoryError as e:
+        return _cli_error("invalid_input", e)
+    except (ValueError, RuntimeError) as e:
+        return _cli_error("invalid_input", e)
+    except OSError as e:
+        return _cli_error("io_error", e)
+
+
+def _cli_error(code: str, exc: BaseException) -> int:
+    print(json.dumps({"error": {"code": code, "message": str(exc)}}),
+          file=sys.stderr)
+    return 3
 
 
 def _run(argv: list[str] | None = None) -> int:
@@ -102,7 +129,7 @@ def _run(argv: list[str] | None = None) -> int:
     sp.add_argument("--cmd", dest="cmds", action="append", default=[])
     sp = sub.add_parser("serve")
     sp.add_argument("--host", default="127.0.0.1")
-    sp.add_argument("--port", type=int, default=8765)
+    sp.add_argument("--port", type=_port, default=8765)
     sp.add_argument("--enable-write", action="store_true",
                     help="enable the guarded patch endpoint")
     sub.add_parser("gui")
@@ -139,9 +166,7 @@ def _run(argv: list[str] | None = None) -> int:
         if args.json:
             from .output import image_to_dict
             items = image_to_dict(img, result)["functions"]
-            limit = args.limit if args.limit is not None else len(items)
-            print(json.dumps(page(items[args.offset:args.offset + limit],
-                                  len(items), limit, args.offset), indent=2))
+            print(json.dumps(paginate(items, args.limit, args.offset), indent=2))
         else:
             for f in sorted(result["functions"], key=lambda x: x.addr):
                 print(f"{f.addr:#014x}  {f.end - f.addr:5d}  {f.name}  [{f.source}]"
@@ -150,9 +175,7 @@ def _run(argv: list[str] | None = None) -> int:
         if args.json:
             items = [{"addr": hex(s.addr), "value": s.value, "encoding": s.encoding,
                       "xrefs": [hex(x) for x in s.xrefs]} for s in result["strings"]]
-            limit = args.limit if args.limit is not None else len(items)
-            print(json.dumps(page(items[args.offset:args.offset + limit],
-                                  len(items), limit, args.offset), indent=2))
+            print(json.dumps(paginate(items, args.limit, args.offset), indent=2))
         else:
             for s in result["strings"]:
                 xr = f"  xrefs={[hex(x) for x in s.xrefs]}" if args.xrefs and s.xrefs else ""

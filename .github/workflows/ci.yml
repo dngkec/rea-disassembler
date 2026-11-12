@@ -36,3 +36,19 @@ jobs:
           ls dist/
       - name: npm pack (contents check)
         run: npm pack --dry-run
+      - name: Base wheel smoke (no optional extras)
+        shell: bash
+        run: |
+          python -m venv /tmp/base-venv
+          /tmp/base-venv/bin/pip install dist/*.whl
+          /tmp/base-venv/bin/readis info /bin/ls --json > /dev/null
+          set +e
+          /tmp/base-venv/bin/readis serve --port 8765 > /tmp/serve.out 2> /tmp/serve.err
+          code=$?
+          set -e
+          test "$code" -eq 3
+          grep -q dependency_missing /tmp/serve.err
+          /tmp/base-venv/bin/readis-mcp < /dev/null > /tmp/mcp.out 2> /tmp/mcp.err
+          code=$?
+          test "$code" -eq 3
+          grep -q dependency_missing /tmp/mcp.err

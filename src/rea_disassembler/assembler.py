@@ -222,7 +222,11 @@ def patch_binary(img: BinaryImage, addr: int, asm: str, out_path: str,
     buf = bytearray(img.data)
     buf[off:off + len(code)] = code
     out = Path(out_path)
-    out.write_bytes(buf)
+    if out.exists():
+        raise FileExistsError(f"patch output already exists: {out}")
+    # "xb" closes the check/write race: an existing path is never truncated.
+    with out.open("xb") as fh:
+        fh.write(buf)
     try:
         out.chmod(0o755)
     except OSError:

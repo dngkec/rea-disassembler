@@ -128,3 +128,41 @@ def test_npm_wrapper_files_exist():
     assert meta["bin"], "package.json must declare a bin entry"
     for rel in meta["bin"].values():
         assert (ROOT / rel).exists(), f"bin target {rel} missing"
+
+
+def _mcp_tool_names(env_extra):
+    env = dict(os.environ, PYTHONPATH=str(SRC))
+    env.pop("READIS_MCP_ENABLE_WRITE", None)
+    env.pop("READIS_MCP_ENABLE_DEBUG", None)
+    env.update(env_extra)
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "rea_disassembler.mcp_server"],
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        env=env)
+    try:
+        def rpc(payload):
+            proc.stdin.write((json.dumps(payload) + "\n").encode())
+            proc.stdin.flush()
+            return json.loads(proc.stdout.readline())
+        rpc({"jsonrpc": "2.0", "id": 1, "method": "initialize",
+             "params": {"protocolVersion": "2024-11-05", "capabilities": {},
+                        "clientInfo": {"name": "t", "version": "1"}}})
+        proc.stdin.write(b'{"jsonrpc": "2.0", "method": "notifications/initialized"}\n')
+        proc.stdin.flush()
+        tools = rpc({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+        return {t["name"] for t in tools["result"]["tools"]}
+    finally:
+        proc.terminate()
+
+
+def test_mcp_write_debug_tools_are_opt_in_only():
+    try:
+        import mcp  # noqa: F401
+    except ImportError:
+        pytest.skip("mcp SDK not installed")
+    default = _mcp_tool_names({})
+    assert "assemble_and_patch" not in default
+    assert "debug_run" not in default
+    with_write = _mcp_tool_names({"READIS_MCP_ENABLE_WRITE": "1"})
+    assert "assemble_and_patch" in with_write
+    assert "debug_run" not in with_write

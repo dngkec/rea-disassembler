@@ -9,7 +9,7 @@ description = "Headless, evidence-first disassembler: Mach-O/ELF/PE, ARM64+x86-6
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = ["capstone==5.0.3"]
-license = { text = "MIT" }
+license = "MIT"
 
 [project.optional-dependencies]
 mcp = ["mcp>=1.2"]

@@ -11,10 +11,31 @@ from .models import BinaryImage
 SCHEMA_VERSION = "1"
 
 
+def clamp_pagination(limit: int | None, offset: int, default_limit: int) -> tuple[int, int]:
+    """Normalise pagination once, at the shared boundary.
+
+    Negative values clamp to zero instead of becoming Python tail slices;
+    reported values always match the slice actually returned.
+    """
+    if limit is None:
+        limit = default_limit
+    return max(0, min(limit, 5000)), max(0, offset)
+
+
 def page(items: list, total: int, limit: int, offset: int) -> dict:
     """One paginated envelope — the agent contract for list surfaces."""
-    return {"schema_version": SCHEMA_VERSION, "total": total,
+    limit, offset = clamp_pagination(limit, offset, limit)
+    return {"schema_version": SCHEMA_VERSION, "total": max(0, total),
             "limit": limit, "offset": offset, "items": items}
+
+
+def paginate(items: list, limit: int | None, offset: int,
+             default_limit: int | None = None) -> dict:
+    """Slice and envelope a list with the canonical clamped contract."""
+    if default_limit is None:
+        default_limit = len(items)
+    limit, offset = clamp_pagination(limit, offset, default_limit)
+    return page(items[offset:offset + limit], len(items), limit, offset)
 
 
 def image_to_dict(img: BinaryImage, result: dict) -> dict:

@@ -86,6 +86,8 @@ def _load_thin(path, data, base_off, fmt, slices):
         hdr = struct.unpack_from(">IiiIIII", data, base_off)
     else:
         raise ValueError(f"not a Mach-O image at offset {base_off:#x}")
+    if len(data) - base_off < (32 if bits == 64 else 28):
+        raise ValueError("truncated Mach-O header")
     _magic, cputype, _sub, _ftype, ncmds, sizeofcmds = hdr[0], hdr[1], hdr[2], hdr[3], hdr[4], hdr[5]
     arch = CPU_NAMES.get(cputype, f"cpu-{cputype & 0xFFFFFF:#x}")
     if bits == 64 and arch == "arm":
@@ -102,7 +104,8 @@ def _load_thin(path, data, base_off, fmt, slices):
             break
         cmd, cmdsize = struct.unpack_from(f"{endian}II", data, off)
         if cmdsize < 8 or off + cmdsize > len(data):
-            break
+            raise ValueError(
+                f"malformed Mach-O load command at {off:#x}: size {cmdsize}")
         body = data[off:off + cmdsize]
         if cmd in (LC_SEGMENT, LC_SEGMENT_64):
             _parse_segment(img, body, endian, bits)
