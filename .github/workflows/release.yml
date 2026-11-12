@@ -2,7 +2,8 @@ name: Release
 
 # Publishes on version tags (v*).  Requires, in the GitHub repo:
 #   * PyPI Trusted Publisher configured for this workflow (no token)
-#   * NPM_TOKEN secret (or npm trusted publishing) for npm provenance
+#   * npm Trusted Publisher linked to this workflow (after a first
+#     manual publish by the owner)
 # Until those exist, run the same steps locally with --dry-run.
 on:
   push:
@@ -55,6 +56,11 @@ jobs:
         with:
           node-version: "22"
           registry-url: "https://registry.npmjs.org"
+      # Trusted publishing (OIDC): no stored token.  One-time setup by the
+      # repo owner on npmjs.com -> package Settings -> Trusted Publisher:
+      # GitHub Actions, repo dngkec/rea-disassembler, workflow release.yml.
+      # The very first publish must still be a manual `npm publish` by the
+      # owner, because a trusted publisher can only be attached to a
+      # package that already exists.
+      - run: npm install -g npm@latest
       - run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
