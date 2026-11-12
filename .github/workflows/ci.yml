@@ -48,7 +48,9 @@ jobs:
           set -e
           test "$code" -eq 3
           grep -q dependency_missing /tmp/serve.err
+          set +e
           /tmp/base-venv/bin/readis-mcp < /dev/null > /tmp/mcp.out 2> /tmp/mcp.err
           code=$?
+          set -e
           test "$code" -eq 3
           grep -q dependency_missing /tmp/mcp.err

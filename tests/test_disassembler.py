@@ -122,8 +122,8 @@ def test_malformed_inputs_raise_not_crash(tmp_path):
 
 
 def test_system_ls_regression():
-    if not Path("/bin/ls").exists():
-        pytest.skip("macOS only")
+    if sys.platform != "darwin" or not Path("/bin/ls").exists():
+        pytest.skip("macOS only (Darwin /bin/ls is the Mach-O fixture)")
     img = load_binary("/bin/ls")
     res = analyse(img)
     # Hopper via REA reports 133 procedures / 111 strings; we match the
@@ -138,8 +138,8 @@ def test_ls_data_ref_leaf_functions():
     """Regression: qsort-style comparators at __text start are reachable
     only as function pointers (adrp+add).  Pure call-graph discovery
     missed all eleven; data-reference discovery must find every one."""
-    if not Path("/bin/ls").exists():
-        pytest.skip("macOS only")
+    if sys.platform != "darwin" or not Path("/bin/ls").exists():
+        pytest.skip("macOS only (Darwin /bin/ls is the Mach-O fixture)")
     img = load_binary("/bin/ls")
     res = analyse(img)
     addrs = {f.addr for f in res["functions"]}
@@ -261,12 +261,14 @@ def test_patch_changes_program_behavior(tmp_path):
     subprocess.run(["clang", "-O0", "-o", str(exe), str(src)], check=True)
     assert subprocess.run([str(exe)], capture_output=True, text=True).stdout == "answer=1\n"
     img = load_binary(str(exe))
-    fn = next(f for f in analyse(img)["functions"] if f.name == "_answer")
+    fn = next(f for f in analyse(img)["functions"] if f.name in ("_answer", "answer"))
     out = tmp_path / "p_patched"
     from rea_disassembler.assembler import patch_binary
-    receipt = patch_binary(img, fn.addr, "mov w0, #42; ret", str(out))
+    asm = "mov w0, #42; ret" if img.arch in ("arm64", "arm64_32") else "mov eax, 42; ret"
+    receipt = patch_binary(img, fn.addr, asm, str(out))
     assert receipt["verified_instruction"].startswith("mov")
-    assert receipt["resigned"] is True
+    # re-signing is a Mach-O concept; ELF/PE outputs are simply written
+    assert receipt["resigned"] is (img.format in ("mach-o", "mach-o-fat"))
     got = subprocess.run([str(out)], capture_output=True, text=True)
     assert got.stdout == "answer=42\n", got
 
